@@ -1,0 +1,22 @@
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+node_modules/
+
+# 本地独有,不要 commit
+backups/
+local.*
+*.local.json
+.env
+.env.*
+!.env.example
+
+# 运行时产物(虽然不在本仓库路径,但保险起见)
+sessions/
+telemetry/
+tasks/
+plans/
+shell-snapshots/

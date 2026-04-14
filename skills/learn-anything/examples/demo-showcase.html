@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>learn-anything 自身演示 · 4 种交互展示 · 交互式学习</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: { colors: { ink: '#1a1a1a', paper: '#fafaf7', accent: '#f97316' } } } }
+  </script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    body { font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .prose-zh h2 { @apply text-2xl font-bold mt-6 mb-3 text-ink; }
+    .prose-zh h3 { @apply text-xl font-semibold mt-4 mb-2; }
+    .prose-zh p { @apply my-3 leading-relaxed text-gray-800; }
+    .prose-zh code { @apply bg-gray-100 px-1.5 py-0.5 rounded text-sm text-orange-700; }
+    .prose-zh pre { @apply my-3 rounded-lg overflow-auto; }
+    .prose-zh pre code { @apply bg-transparent p-0 text-sm; }
+    .prose-zh ul { @apply list-disc pl-6 my-2; }
+    .CodeMirror { height: auto; border: 1px solid #e5e7eb; border-radius: 0.5rem; font-size: 14px; }
+    .viz-svg { width: 100%; height: 420px; background: #fff; border: 1px solid #e5e7eb; border-radius: 0.5rem; }
+    .chapter-dot { transition: all 0.2s; }
+    [x-cloak] { display: none !important; }
+  </style>
+</head>
+<body class="bg-paper text-ink">
+
+<div x-data="app()" x-init="init()" x-cloak class="flex h-screen overflow-hidden">
+
+  <!-- 左侧章节列表 -->
+  <aside class="w-72 bg-white border-r border-gray-200 flex flex-col">
+    <header class="p-5 border-b border-gray-200">
+      <div class="text-xs text-gray-500 mb-1">来源仓库</div>
+      <a :href="meta.repo" target="_blank" class="text-sm font-medium text-accent hover:underline" x-text="meta.repoName"></a>
+      <h1 class="mt-2 text-lg font-bold" x-text="meta.title"></h1>
+      <div class="mt-3 flex items-center gap-2 text-xs text-gray-600">
+        <div class="flex-1 bg-gray-200 h-1.5 rounded-full overflow-hidden">
+          <div class="bg-accent h-full" :style="`width:${progressPct}%`"></div>
+        </div>
+        <span x-text="`${completedCount}/${chapters.length}`"></span>
+      </div>
+    </header>
+    <nav class="flex-1 overflow-y-auto p-3">
+      <template x-for="(ch, i) in chapters" :key="ch.id">
+        <button @click="goto(i)"
+          class="w-full text-left px-3 py-2.5 rounded-lg mb-1 flex items-start gap-3 hover:bg-gray-100 transition"
+          :class="i === currentIdx && 'bg-orange-50 ring-1 ring-accent'">
+          <span class="chapter-dot w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5"
+            :class="completed[ch.id] ? 'bg-accent text-white' : 'bg-gray-200 text-gray-600'"
+            x-text="completed[ch.id] ? '✓' : i+1"></span>
+          <span>
+            <div class="text-sm font-medium leading-snug" x-text="ch.title"></div>
+            <div class="text-xs text-gray-500 mt-0.5" x-text="modeLabel(ch.mode)"></div>
+          </span>
+        </button>
+      </template>
+    </nav>
+    <footer class="p-3 border-t border-gray-200 text-xs text-gray-500 flex items-center justify-between">
+      <span>进度存于本浏览器</span>
+      <button @click="resetProgress()" class="hover:text-red-600">重置</button>
+    </footer>
+  </aside>
+
+  <!-- 主内容区 -->
+  <main class="flex-1 overflow-y-auto">
+    <div class="max-w-3xl mx-auto p-8 pb-24">
+      <div class="text-xs uppercase tracking-wide text-accent font-bold mb-2" x-text="modeLabel(current.mode)"></div>
+      <h2 class="text-3xl font-bold mb-2" x-text="current.title"></h2>
+      <p class="text-gray-600 mb-6" x-text="current.concept"></p>
+
+      <!-- mode: intro -->
+      <template x-if="current.mode === 'intro'">
+        <div>
+          <div class="prose-zh" x-html="renderMarkdown(current.payload.markdown)"></div>
+          <template x-if="current.payload.snippet">
+            <div class="mt-4">
+              <div class="text-xs text-gray-500 mb-1" x-text="current.payload.snippet.path"></div>
+              <pre class="!mt-0"><code :class="`language-${current.payload.snippet.lang || 'text'}`" x-text="current.payload.snippet.code"></code></pre>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <!-- mode: visualization -->
+      <template x-if="current.mode === 'visualization'">
+        <div>
+          <div class="prose-zh mb-4" x-html="renderMarkdown(current.payload.intro || '')"></div>
+          <svg class="viz-svg" :id="`viz-${current.id}`"></svg>
+          <div class="mt-3 text-sm text-gray-600">
+            <strong>试试看:</strong>
+            <ul class="list-disc pl-5 mt-1">
+              <template x-for="tip in current.payload.interactions"><li x-text="tip"></li></template>
+            </ul>
+          </div>
+        </div>
+      </template>
+
+      <!-- mode: socratic -->
+      <template x-if="current.mode === 'socratic'">
+        <div>
+          <div class="prose-zh mb-4" x-html="renderMarkdown(current.payload.context || '')"></div>
+          <template x-for="(qa, qi) in current.payload.questions" :key="qi">
+            <div class="bg-white border border-gray-200 rounded-lg p-4 mb-3">
+              <div class="font-medium mb-2">Q<span x-text="qi+1"></span>. <span x-text="qa.q"></span></div>
+              <textarea x-model="socraticAnswers[current.id+'-'+qi]"
+                class="w-full border border-gray-300 rounded p-2 text-sm" rows="2"
+                placeholder="说说你的想法..."></textarea>
+              <div class="mt-2 flex gap-2">
+                <button @click="revealHint(qi)" class="text-xs px-3 py-1 border border-gray-300 rounded hover:bg-gray-50">看提示</button>
+                <button @click="revealAnswer(qi)" class="text-xs px-3 py-1 border border-gray-300 rounded hover:bg-gray-50">参考答案</button>
+              </div>
+              <template x-if="revealed[current.id+'-hint-'+qi]">
+                <div class="mt-3 p-3 bg-blue-50 border-l-4 border-blue-400 text-sm" x-text="qa.hint"></div>
+              </template>
+              <template x-if="revealed[current.id+'-ans-'+qi]">
+                <div class="mt-3 p-3 bg-green-50 border-l-4 border-green-500 text-sm prose-zh" x-html="renderMarkdown(qa.answer)"></div>
+              </template>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <!-- mode: sandbox -->
+      <template x-if="current.mode === 'sandbox'">
+        <div>
+          <div class="prose-zh mb-4" x-html="renderMarkdown(current.payload.intro || '')"></div>
+          <div class="mb-3">
+            <div class="text-xs text-gray-500 mb-1">任务:<span class="text-gray-800" x-text="current.payload.task"></span></div>
+            <textarea :id="`cm-${current.id}`" x-text="current.payload.starter"></textarea>
+          </div>
+          <div class="flex gap-2 mb-3">
+            <button @click="runSandbox()" :disabled="pyodideLoading"
+              class="px-4 py-1.5 bg-accent text-white text-sm rounded hover:bg-orange-600 disabled:opacity-50">
+              <span x-show="!pyodideLoading">运行</span>
+              <span x-show="pyodideLoading">Pyodide 加载中...</span>
+            </button>
+            <button @click="checkSandbox()" class="px-4 py-1.5 border border-gray-300 rounded text-sm hover:bg-gray-50">检查答案</button>
+          </div>
+          <pre class="bg-gray-900 text-green-300 p-3 rounded text-xs overflow-auto max-h-60" x-text="sandboxOutput"></pre>
+          <template x-if="sandboxVerdict">
+            <div class="mt-3 p-3 rounded text-sm"
+              :class="sandboxVerdict.pass ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'"
+              x-text="sandboxVerdict.msg"></div>
+          </template>
+        </div>
+      </template>
+
+      <!-- 检查点 -->
+      <div class="mt-8 pt-6 border-t border-gray-200 flex items-center justify-between">
+        <div class="text-sm text-gray-600">
+          <span class="font-medium">过关标准:</span>
+          <span x-text="current.checkpoint"></span>
+        </div>
+        <div class="flex gap-2">
+          <button @click="prev()" :disabled="currentIdx===0"
+            class="px-3 py-1.5 border border-gray-300 rounded text-sm disabled:opacity-40 hover:bg-gray-50">← 上一章</button>
+          <button @click="complete()"
+            class="px-4 py-1.5 bg-ink text-white text-sm rounded hover:bg-gray-800"
+            x-text="completed[current.id] ? '下一章 →' : '学会了 →'"></button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- AI 助手悬浮按钮 + 面板 -->
+  <div class="fixed bottom-6 right-6 z-50">
+    <button @click="aiOpen = !aiOpen" x-show="!aiOpen"
+      class="w-14 h-14 rounded-full bg-ink text-white shadow-lg flex items-center justify-center hover:bg-gray-800">
+      <span class="text-xl">💬</span>
+    </button>
+    <div x-show="aiOpen" x-transition
+      class="w-96 h-[500px] bg-white rounded-xl shadow-2xl border border-gray-200 flex flex-col">
+      <header class="p-3 border-b flex justify-between items-center">
+        <div class="font-medium text-sm">AI 学习助手</div>
+        <div class="flex gap-2">
+          <button @click="aiConfigOpen = true" class="text-xs text-gray-500 hover:text-gray-800">⚙️</button>
+          <button @click="aiOpen = false" class="text-gray-400 hover:text-gray-700">✕</button>
+        </div>
+      </header>
+      <div class="flex-1 overflow-y-auto p-3 text-sm space-y-3" x-ref="chatLog">
+        <template x-if="!aiConfig.key">
+          <div class="text-gray-500 text-xs p-3 bg-gray-50 rounded">
+            点右上 ⚙️ 填入你的 API key,即可就当前章节提问。<br>
+            支持 OpenAI / Anthropic / 任何兼容 OpenAI 格式的 endpoint。
+          </div>
+        </template>
+        <template x-for="msg in aiMessages">
+          <div :class="msg.role === 'user' ? 'text-right' : ''">
+            <div class="inline-block max-w-[85%] px-3 py-2 rounded-lg"
+              :class="msg.role === 'user' ? 'bg-accent text-white' : 'bg-gray-100'"
+              x-html="renderMarkdown(msg.content)"></div>
+          </div>
+        </template>
+      </div>
+      <footer class="p-3 border-t">
+        <form @submit.prevent="sendAI()" class="flex gap-2">
+          <input x-model="aiInput" :disabled="!aiConfig.key || aiPending"
+            placeholder="就这一章问点什么..."
+            class="flex-1 border border-gray-300 rounded px-3 py-1.5 text-sm">
+          <button type="submit" :disabled="!aiConfig.key || aiPending || !aiInput.trim()"
+            class="px-3 py-1.5 bg-accent text-white rounded text-sm disabled:opacity-40">发送</button>
+        </form>
+      </footer>
+    </div>
+
+    <!-- AI 配置模态 -->
+    <div x-show="aiConfigOpen" x-transition
+      class="fixed inset-0 bg-black/40 flex items-center justify-center z-50" @click.self="aiConfigOpen = false">
+      <div class="bg-white rounded-xl p-6 w-[420px]">
+        <h3 class="font-bold mb-4">AI 助手配置</h3>
+        <div class="space-y-3 text-sm">
+          <label class="block">
+            <span class="text-gray-600">Provider</span>
+            <select x-model="aiConfig.provider" class="mt-1 w-full border rounded px-2 py-1.5">
+              <option value="openai">OpenAI 兼容</option>
+              <option value="anthropic">Anthropic</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class="text-gray-600">API Base URL</span>
+            <input x-model="aiConfig.baseUrl" class="mt-1 w-full border rounded px-2 py-1.5" placeholder="https://api.openai.com/v1">
+          </label>
+          <label class="block">
+            <span class="text-gray-600">Model</span>
+            <input x-model="aiConfig.model" class="mt-1 w-full border rounded px-2 py-1.5" placeholder="gpt-4o-mini">
+          </label>
+          <label class="block">
+            <span class="text-gray-600">API Key</span>
+            <input type="password" x-model="aiConfig.key" class="mt-1 w-full border rounded px-2 py-1.5">
+            <span class="text-xs text-gray-400">仅存于本浏览器 localStorage</span>
+          </label>
+        </div>
+        <div class="mt-5 flex justify-end gap-2">
+          <button @click="aiConfigOpen = false" class="px-4 py-1.5 border rounded text-sm">取消</button>
+          <button @click="saveAIConfig()" class="px-4 py-1.5 bg-ink text-white rounded text-sm">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const COURSE = {
+  "meta": {
+    "title": "learn-anything 自身演示 · 4 种交互展示",
+    "repo": "https://github.com/wanlizhu/learn-anything",
+    "repoName": "demo/learn-anything"
+  },
+  "chapters": [
+    {
+      "id": "ch01-welcome",
+      "title": "欢迎 · 这个网页是怎么来的",
+      "mode": "intro",
+      "concept": "learn-anything skill 把一个 GitHub 仓库变成可交互学习网页",
+      "checkpoint": "能说出 learn-anything 的 3 步生成流程",
+      "payload": {
+        "markdown": "## 这是什么\n\n你现在看到的页面,是 **learn-anything** skill 的自我演示。它把一个 GitHub 仓库拆解成 5-8 章可交互教程,最终产出就是**一个 HTML 文件**。\n\n## 核心思路\n\n- **做中学**: 拖一拖、答一答、跑一跑,比看 README 快\n- **循证讲解**: 所有问答都基于真实源码,不编造\n- **渐进解锁**: 每章通关,进度自动存在浏览器\n\n## 4 种交互模式\n\n1. **讲解 (intro)** — 就是你现在看的\n2. **可视化 (visualization)** — 下一章\n3. **引导问答 (socratic)** — 第 3 章\n4. **代码沙盒 (sandbox)** — 第 4 章\n\n点右下角 💬 可以配置 AI 助手,就任何一章追问。",
+        "snippet": {
+          "path": "prompts/03-fill-chapter.md",
+          "lang": "json",
+          "code": "{\n  \"id\": \"ch01-welcome\",\n  \"mode\": \"intro\",\n  \"payload\": {\n    \"markdown\": \"...\",\n    \"snippet\": { \"path\": \"...\", \"code\": \"...\" }\n  }\n}"
+        }
+      }
+    },
+    {
+      "id": "ch02-flow",
+      "title": "生成流程 · 可视化",
+      "mode": "visualization",
+      "concept": "从一个 GitHub URL 到一个可玩 HTML,中间经历了哪些步骤",
+      "checkpoint": "能在图上顺序指出 5 步,且知道哪步需要用户确认",
+      "payload": {
+        "intro": "下图是 skill 内部的处理流程。**试着拖动节点** 看看依赖关系。圆圈上悬停可看说明。",
+        "type": "graph",
+        "nodes": [
+          {
+            "id": "input",
+            "label": "GitHub URL",
+            "note": "用户输入"
+          },
+          {
+            "id": "clone",
+            "label": "gh clone",
+            "note": "本地克隆仓库"
+          },
+          {
+            "id": "analyze",
+            "label": "提炼抽象",
+            "note": "Step 1: 找出 3-7 个核心概念"
+          },
+          {
+            "id": "design",
+            "label": "设计课程",
+            "note": "Step 2: 5-8 章 + 每章选 mode"
+          },
+          {
+            "id": "fill",
+            "label": "生成每章",
+            "note": "Step 3: 按 schema 填充 payload"
+          },
+          {
+            "id": "render",
+            "label": "注入模板",
+            "note": "替换 base.html 的 COURSE_JSON"
+          },
+          {
+            "id": "output",
+            "label": "HTML 文件",
+            "note": "可双击打开,零安装"
+          }
+        ],
+        "links": [
+          {
+            "source": "input",
+            "target": "clone"
+          },
+          {
+            "source": "clone",
+            "target": "analyze"
+          },
+          {
+            "source": "analyze",
+            "target": "design"
+          },
+          {
+            "source": "design",
+            "target": "fill"
+          },
+          {
+            "source": "fill",
+            "target": "render"
+          },
+          {
+            "source": "render",
+            "target": "output"
+          }
+        ],
+        "interactions": [
+          "拖动任意节点,看受力布局",
+          "鼠标悬停圆圈,看每步说明",
+          "注意: 提炼抽象 和 设计课程 两步需要用户确认后才继续"
+        ]
+      }
+    },
+    {
+      "id": "ch03-why",
+      "title": "设计思考 · 问答",
+      "mode": "socratic",
+      "concept": "为什么要这样设计? 用引导式问题帮你理解背后的权衡",
+      "checkpoint": "能说出'为什么不用多页 React App'的 2 条理由",
+      "payload": {
+        "context": "learn-anything 做了很多取舍。下面几个问题帮你理解背后的思路。先自己想想,再看提示和参考答案。",
+        "questions": [
+          {
+            "q": "为什么选'单文件 HTML'作为输出形态,而不是多页 React 项目?",
+            "hint": "想想:要给朋友发一个学习教程,哪种更方便?",
+            "answer": "**可分享性 + 零依赖**。单文件 HTML 双击即开,可邮件/微信直接传。若是 React 项目,需要 `npm install` + 构建,对非开发者极不友好。代价是功能受限(不能做超复杂交互)。"
+          },
+          {
+            "q": "章节 JSON 为什么要严格区分 4 种 `mode`,而不是自由混排?",
+            "hint": "想想:模板渲染代码需要知道该怎么渲染这一章,怎么让它判断?",
+            "answer": "**约束 = 可预测**。固定 mode 让模板能走简单的 switch 分支,不需要动态解析。代价是灵活度降低,但换来了每章都能保证**可渲染**、**可自动检查**。"
+          },
+          {
+            "q": "AI 助手的 API key 为什么让用户在网页里填,而不是生成时就内嵌进去?",
+            "hint": "API key 是敏感信息,HTML 文件可能被分享...",
+            "answer": "**安全 + 成本分离**。内嵌 key 意味着任何拿到这个 HTML 的人都能用你的额度。让用户自己填,存在他自己的 localStorage,互不干扰。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ch04-sandbox",
+      "title": "动手玩 · Python 沙盒",
+      "mode": "sandbox",
+      "concept": "代码沙盒章节长这样。改下面代码,点运行,看结果",
+      "checkpoint": "能让 print 输出 '斐波那契第 10 项: 55'",
+      "payload": {
+        "intro": "修改 `fib(n)` 函数,让它返回斐波那契数列的第 n 项。\n\n- 第 1 项 = 1\n- 第 2 项 = 1\n- 第 n 项 = 第 n-1 项 + 第 n-2 项\n\n改完点 **运行** 试,点 **检查答案** 让系统判分。",
+        "task": "实现 fib(n),让最后输出 '斐波那契第 10 项: 55'",
+        "starter": "def fib(n):\n    # TODO: 实现斐波那契\n    if n <= 2:\n        return 1\n    return 0  # 改这里\n\nprint(f'斐波那契第 10 项: {fib(10)}')",
+        "expect": "斐波那契第 10 项: 55"
+      }
+    }
+  ]
+};
+
+function app() {
+  return {
+    meta: COURSE.meta,
+    chapters: COURSE.chapters,
+    currentIdx: 0,
+    completed: {},
+    aiOpen: false,
+    aiConfigOpen: false,
+    aiConfig: { provider: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini', key: '' },
+    aiMessages: [],
+    aiInput: '',
+    aiPending: false,
+    socraticAnswers: {},
+    revealed: {},
+    sandboxOutput: '',
+    sandboxVerdict: null,
+    pyodide: null,
+    pyodideLoading: false,
+    cmEditor: null,
+
+    get current() { return this.chapters[this.currentIdx]; },
+    get completedCount() { return Object.values(this.completed).filter(Boolean).length; },
+    get progressPct() { return Math.round(100 * this.completedCount / this.chapters.length); },
+
+    init() {
+      const key = `learn-${this.meta.repoName}`;
+      const saved = JSON.parse(localStorage.getItem(key) || '{}');
+      this.completed = saved.completed || {};
+      this.currentIdx = saved.idx || 0;
+      const cfg = JSON.parse(localStorage.getItem('learn-ai-config') || 'null');
+      if (cfg) this.aiConfig = cfg;
+      this.$watch('currentIdx', () => this.onChapterChange());
+      this.$watch('completed', () => this.persist());
+      this.$nextTick(() => this.onChapterChange());
+    },
+
+    persist() {
+      const key = `learn-${this.meta.repoName}`;
+      localStorage.setItem(key, JSON.stringify({ completed: this.completed, idx: this.currentIdx }));
+    },
+
+    onChapterChange() {
+      this.sandboxOutput = ''; this.sandboxVerdict = null;
+      this.$nextTick(() => {
+        if (window.hljs) document.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+        if (this.current.mode === 'visualization') this.renderViz();
+        if (this.current.mode === 'sandbox') this.initCodeMirror();
+      });
+      this.persist();
+    },
+
+    goto(i) { this.currentIdx = i; },
+    prev() { if (this.currentIdx > 0) this.currentIdx--; },
+    complete() {
+      this.completed[this.current.id] = true;
+      this.completed = { ...this.completed };
+      if (this.currentIdx < this.chapters.length - 1) this.currentIdx++;
+    },
+    resetProgress() {
+      if (!confirm('清空所有进度?')) return;
+      this.completed = {}; this.currentIdx = 0; this.persist();
+    },
+    modeLabel(m) { return { intro: '讲解', visualization: '可视化', socratic: '引导问答', sandbox: '代码沙盒' }[m] || m; },
+    renderMarkdown(md) { return marked.parse(md || ''); },
+
+    revealHint(qi) { this.revealed[this.current.id+'-hint-'+qi] = true; this.revealed = {...this.revealed}; },
+    revealAnswer(qi) { this.revealed[this.current.id+'-ans-'+qi] = true; this.revealed = {...this.revealed}; },
+
+    renderViz() {
+      const svg = d3.select(`#viz-${this.current.id}`);
+      svg.selectAll('*').remove();
+      const spec = this.current.payload;
+      const w = svg.node().clientWidth, h = 420;
+      if (spec.type === 'graph') {
+        const sim = d3.forceSimulation(spec.nodes)
+          .force('link', d3.forceLink(spec.links).id(d => d.id).distance(90))
+          .force('charge', d3.forceManyBody().strength(-240))
+          .force('center', d3.forceCenter(w/2, h/2));
+        const link = svg.append('g').selectAll('line').data(spec.links).join('line')
+          .attr('stroke', '#cbd5e1').attr('stroke-width', 1.5);
+        const node = svg.append('g').selectAll('g').data(spec.nodes).join('g').call(
+          d3.drag()
+            .on('start', (e,d) => { if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+            .on('drag', (e,d) => { d.fx = e.x; d.fy = e.y; })
+            .on('end', (e,d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; })
+        );
+        node.append('circle').attr('r', 22).attr('fill', '#f97316').attr('stroke', '#fff').attr('stroke-width', 2);
+        node.append('text').text(d => d.label || d.id).attr('text-anchor', 'middle').attr('dy', 4).attr('fill', '#fff').attr('font-size', 11);
+        node.append('title').text(d => d.note || '');
+        sim.on('tick', () => {
+          link.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+          node.attr('transform', d => `translate(${d.x},${d.y})`);
+        });
+      } else if (spec.type === 'tree') {
+        const root = d3.hierarchy(spec.root);
+        d3.tree().size([w-40, h-60])(root);
+        svg.append('g').attr('transform','translate(20,30)').selectAll('path').data(root.links()).join('path')
+          .attr('d', d3.linkVertical().x(d=>d.x).y(d=>d.y)).attr('fill','none').attr('stroke','#cbd5e1');
+        const g = svg.append('g').attr('transform','translate(20,30)').selectAll('g').data(root.descendants()).join('g')
+          .attr('transform', d => `translate(${d.x},${d.y})`);
+        g.append('circle').attr('r',18).attr('fill','#f97316');
+        g.append('text').text(d=>d.data.label||d.data.id).attr('text-anchor','middle').attr('dy',4).attr('fill','#fff').attr('font-size',11);
+      } else {
+        svg.append('text').attr('x',w/2).attr('y',h/2).attr('text-anchor','middle').text('(未知可视化类型: ' + spec.type + ')');
+      }
+    },
+
+    initCodeMirror() {
+      const ta = document.getElementById(`cm-${this.current.id}`);
+      if (!ta || ta.dataset.cm === 'on') return;
+      ta.dataset.cm = 'on';
+      this.cmEditor = CodeMirror.fromTextArea(ta, { mode: 'python', lineNumbers: true, theme: 'default' });
+    },
+
+    async loadPyodide() {
+      if (this.pyodide) return this.pyodide;
+      this.pyodideLoading = true;
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js';
+        s.onload = res; s.onerror = rej; document.head.appendChild(s);
+      });
+      this.pyodide = await loadPyodide();
+      this.pyodideLoading = false;
+      return this.pyodide;
+    },
+
+    async runSandbox() {
+      await this.loadPyodide();
+      const code = this.cmEditor ? this.cmEditor.getValue() : this.current.payload.starter;
+      try {
+        this.pyodide.setStdout({ batched: (s) => { this.sandboxOutput += s + '\n'; } });
+        this.sandboxOutput = '';
+        const result = await this.pyodide.runPythonAsync(code);
+        if (result !== undefined) this.sandboxOutput += '=> ' + result + '\n';
+      } catch (e) {
+        this.sandboxOutput = '❌ ' + e.message;
+      }
+    },
+
+    async checkSandbox() {
+      await this.runSandbox();
+      const expect = this.current.payload.expect;
+      if (!expect) { this.sandboxVerdict = { pass: true, msg: '无自动检查,自行判断输出是否符合预期' }; return; }
+      const pass = this.sandboxOutput.includes(expect);
+      this.sandboxVerdict = { pass, msg: pass ? '✓ 通过' : `✗ 期待输出包含: ${expect}` };
+      if (pass) this.completed[this.current.id] = true;
+    },
+
+    saveAIConfig() {
+      localStorage.setItem('learn-ai-config', JSON.stringify(this.aiConfig));
+      this.aiConfigOpen = false;
+    },
+
+    async sendAI() {
+      if (!this.aiInput.trim()) return;
+      const q = this.aiInput; this.aiInput = '';
+      this.aiMessages.push({ role: 'user', content: q });
+      this.aiPending = true;
+      const systemPrompt = `你是当前章节《${this.current.title}》的学习助手。本章概念: ${this.current.concept}。仅就此章回答,鼓励用户思考,能不直接给答案就不直接给。`;
+      try {
+        let reply;
+        if (this.aiConfig.provider === 'anthropic') {
+          const r = await fetch(this.aiConfig.baseUrl.replace(/\/$/,'') + '/messages', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'x-api-key': this.aiConfig.key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+            body: JSON.stringify({ model: this.aiConfig.model, max_tokens: 512, system: systemPrompt, messages: this.aiMessages.map(m => ({ role: m.role, content: m.content })) })
+          });
+          const d = await r.json();
+          reply = d.content?.[0]?.text || JSON.stringify(d);
+        } else {
+          const r = await fetch(this.aiConfig.baseUrl.replace(/\/$/,'') + '/chat/completions', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + this.aiConfig.key },
+            body: JSON.stringify({ model: this.aiConfig.model, messages: [{ role: 'system', content: systemPrompt }, ...this.aiMessages] })
+          });
+          const d = await r.json();
+          reply = d.choices?.[0]?.message?.content || JSON.stringify(d);
+        }
+        this.aiMessages.push({ role: 'assistant', content: reply });
+      } catch (e) {
+        this.aiMessages.push({ role: 'assistant', content: '❌ ' + e.message });
+      } finally {
+        this.aiPending = false;
+        this.$nextTick(() => { this.$refs.chatLog.scrollTop = this.$refs.chatLog.scrollHeight; });
+      }
+    }
+  };
+}
+</script>
+</body>
+</html>

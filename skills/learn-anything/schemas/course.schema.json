@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Course",
+  "type": "object",
+  "required": ["meta", "chapters"],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["title", "repo", "repoName"],
+      "properties": {
+        "title":    { "type": "string" },
+        "repo":     { "type": "string", "format": "uri" },
+        "repoName": { "type": "string" }
+      }
+    },
+    "chapters": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "mode", "concept", "payload", "checkpoint"],
+        "properties": {
+          "id":         { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "title":      { "type": "string" },
+          "mode":       { "enum": ["intro", "visualization", "socratic", "sandbox"] },
+          "concept":    { "type": "string" },
+          "checkpoint": { "type": "string" },
+          "payload":    { "type": "object" }
+        },
+        "allOf": [
+          {
+            "if":   { "properties": { "mode": { "const": "intro" } } },
+            "then": { "properties": { "payload": { "required": ["markdown"] } } }
+          },
+          {
+            "if":   { "properties": { "mode": { "const": "visualization" } } },
+            "then": { "properties": { "payload": { "required": ["type", "interactions"] } } }
+          },
+          {
+            "if":   { "properties": { "mode": { "const": "socratic" } } },
+            "then": { "properties": { "payload": { "required": ["questions"] } } }
+          },
+          {
+            "if":   { "properties": { "mode": { "const": "sandbox" } } },
+            "then": { "properties": { "payload": { "required": ["starter", "task"] } } }
+          }
+        ]
+      }
+    }
+  }
+}

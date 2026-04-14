@@ -1,0 +1,97 @@
+{
+  "meta": {
+    "title": "learn-anything 自身演示 · 4 种交互展示",
+    "repo": "https://github.com/wanlizhu/learn-anything",
+    "repoName": "demo/learn-anything"
+  },
+  "chapters": [
+    {
+      "id": "ch01-welcome",
+      "title": "欢迎 · 这个网页是怎么来的",
+      "mode": "intro",
+      "concept": "learn-anything skill 把一个 GitHub 仓库变成可交互学习网页",
+      "checkpoint": "能说出 learn-anything 的 3 步生成流程",
+      "payload": {
+        "markdown": "## 这是什么\n\n你现在看到的页面,是 **learn-anything** skill 的自我演示。它把一个 GitHub 仓库拆解成 5-8 章可交互教程,最终产出就是**一个 HTML 文件**。\n\n## 核心思路\n\n- **做中学**: 拖一拖、答一答、跑一跑,比看 README 快\n- **循证讲解**: 所有问答都基于真实源码,不编造\n- **渐进解锁**: 每章通关,进度自动存在浏览器\n\n## 4 种交互模式\n\n1. **讲解 (intro)** — 就是你现在看的\n2. **可视化 (visualization)** — 下一章\n3. **引导问答 (socratic)** — 第 3 章\n4. **代码沙盒 (sandbox)** — 第 4 章\n\n点右下角 💬 可以配置 AI 助手,就任何一章追问。",
+        "snippet": {
+          "path": "prompts/03-fill-chapter.md",
+          "lang": "json",
+          "code": "{\n  \"id\": \"ch01-welcome\",\n  \"mode\": \"intro\",\n  \"payload\": {\n    \"markdown\": \"...\",\n    \"snippet\": { \"path\": \"...\", \"code\": \"...\" }\n  }\n}"
+        }
+      }
+    },
+    {
+      "id": "ch02-flow",
+      "title": "生成流程 · 可视化",
+      "mode": "visualization",
+      "concept": "从一个 GitHub URL 到一个可玩 HTML,中间经历了哪些步骤",
+      "checkpoint": "能在图上顺序指出 5 步,且知道哪步需要用户确认",
+      "payload": {
+        "intro": "下图是 skill 内部的处理流程。**试着拖动节点** 看看依赖关系。圆圈上悬停可看说明。",
+        "type": "graph",
+        "nodes": [
+          { "id": "input",    "label": "GitHub URL",   "note": "用户输入" },
+          { "id": "clone",    "label": "gh clone",     "note": "本地克隆仓库" },
+          { "id": "analyze",  "label": "提炼抽象",      "note": "Step 1: 找出 3-7 个核心概念" },
+          { "id": "design",   "label": "设计课程",      "note": "Step 2: 5-8 章 + 每章选 mode" },
+          { "id": "fill",     "label": "生成每章",      "note": "Step 3: 按 schema 填充 payload" },
+          { "id": "render",   "label": "注入模板",      "note": "替换 base.html 的 COURSE_JSON" },
+          { "id": "output",   "label": "HTML 文件",    "note": "可双击打开,零安装" }
+        ],
+        "links": [
+          { "source": "input",   "target": "clone" },
+          { "source": "clone",   "target": "analyze" },
+          { "source": "analyze", "target": "design" },
+          { "source": "design",  "target": "fill" },
+          { "source": "fill",    "target": "render" },
+          { "source": "render",  "target": "output" }
+        ],
+        "interactions": [
+          "拖动任意节点,看受力布局",
+          "鼠标悬停圆圈,看每步说明",
+          "注意: 提炼抽象 和 设计课程 两步需要用户确认后才继续"
+        ]
+      }
+    },
+    {
+      "id": "ch03-why",
+      "title": "设计思考 · 问答",
+      "mode": "socratic",
+      "concept": "为什么要这样设计? 用引导式问题帮你理解背后的权衡",
+      "checkpoint": "能说出'为什么不用多页 React App'的 2 条理由",
+      "payload": {
+        "context": "learn-anything 做了很多取舍。下面几个问题帮你理解背后的思路。先自己想想,再看提示和参考答案。",
+        "questions": [
+          {
+            "q": "为什么选'单文件 HTML'作为输出形态,而不是多页 React 项目?",
+            "hint": "想想:要给朋友发一个学习教程,哪种更方便?",
+            "answer": "**可分享性 + 零依赖**。单文件 HTML 双击即开,可邮件/微信直接传。若是 React 项目,需要 `npm install` + 构建,对非开发者极不友好。代价是功能受限(不能做超复杂交互)。"
+          },
+          {
+            "q": "章节 JSON 为什么要严格区分 4 种 `mode`,而不是自由混排?",
+            "hint": "想想:模板渲染代码需要知道该怎么渲染这一章,怎么让它判断?",
+            "answer": "**约束 = 可预测**。固定 mode 让模板能走简单的 switch 分支,不需要动态解析。代价是灵活度降低,但换来了每章都能保证**可渲染**、**可自动检查**。"
+          },
+          {
+            "q": "AI 助手的 API key 为什么让用户在网页里填,而不是生成时就内嵌进去?",
+            "hint": "API key 是敏感信息,HTML 文件可能被分享...",
+            "answer": "**安全 + 成本分离**。内嵌 key 意味着任何拿到这个 HTML 的人都能用你的额度。让用户自己填,存在他自己的 localStorage,互不干扰。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ch04-sandbox",
+      "title": "动手玩 · Python 沙盒",
+      "mode": "sandbox",
+      "concept": "代码沙盒章节长这样。改下面代码,点运行,看结果",
+      "checkpoint": "能让 print 输出 '斐波那契第 10 项: 55'",
+      "payload": {
+        "intro": "修改 `fib(n)` 函数,让它返回斐波那契数列的第 n 项。\n\n- 第 1 项 = 1\n- 第 2 项 = 1\n- 第 n 项 = 第 n-1 项 + 第 n-2 项\n\n改完点 **运行** 试,点 **检查答案** 让系统判分。",
+        "task": "实现 fib(n),让最后输出 '斐波那契第 10 项: 55'",
+        "starter": "def fib(n):\n    # TODO: 实现斐波那契\n    if n <= 2:\n        return 1\n    return 0  # 改这里\n\nprint(f'斐波那契第 10 项: {fib(10)}')",
+        "expect": "斐波那契第 10 项: 55"
+      }
+    }
+  ]
+}
