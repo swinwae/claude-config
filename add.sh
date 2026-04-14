@@ -45,6 +45,22 @@ if [[ -e "$dst" ]]; then
   exit 4
 fi
 
+# 轻量保护:检测显式来源信号
+warn=""
+case "$(basename "$src")" in
+  lark-*) warn="这是 lark-* 开头,通常由 lark-cli 自己管。入仓会失去自动升级。" ;;
+esac
+if [[ -d "$src/.git" ]]; then
+  warn="$warn
+含 .git/ 子目录,像是从别人仓库 clone 的。入仓会把别人的 git 历史一起搬。"
+fi
+if [[ -n "$warn" ]]; then
+  echo "⚠  可能不该入仓:"
+  echo "$warn" | sed 's/^/   /'
+  read -p "仍要继续? (y/N) " yn
+  [[ "$yn" == "y" || "$yn" == "Y" ]] || { echo "已取消"; exit 0; }
+fi
+
 mkdir -p "$(dirname "$dst")"
 mv "$src" "$dst"
 ln -s "$dst" "$src"
