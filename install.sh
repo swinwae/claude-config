@@ -43,13 +43,25 @@ echo "   仓库: $REPO_DIR"
 echo "   目标: $CLAUDE_DIR"
 echo ""
 
+link_all_in() {
+  local subdir="$1"
+  [[ -d "$REPO_DIR/$subdir" ]] || return
+  for item in "$REPO_DIR/$subdir"/*; do
+    [[ -e "$item" ]] || continue
+    link "$subdir/$(basename "$item")"
+  done
+}
+
+# 单文件
 link CLAUDE.md
 link settings.json
 link statusline-command.sh
-link rules/git-rules.md
-link rules/deploy-rules.md
-link commands/memory-digest.md
-link skills/learn-anything
+
+# 目录下所有条目(新增 skill/agent/command 自动生效)
+link_all_in rules
+link_all_in commands
+link_all_in skills
+link_all_in agents
 
 echo ""
 echo "== ✅ symlink 完成 =="

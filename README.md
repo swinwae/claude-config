@@ -63,7 +63,7 @@ lark-cli auth login      # 登录
 
 ## 🔄 日常使用
 
-改配置 = 编辑仓库文件:
+**改现有配置** = 直接编辑仓库文件(symlink 透明):
 
 ```bash
 cd ~/projects/claude-config
@@ -72,7 +72,26 @@ git add . && git commit -m "feat: 调整 learn-anything 的章节规则"
 git push
 ```
 
-新机器 `git pull` 就同步所有改动,不需要重跑 install.sh(除非新增了文件需要 symlink)。
+**新增 skill / agent / command** — 两种方式:
+
+### A) 已经在 `~/.claude/` 里捣鼓好了,搬进仓库
+
+```bash
+bash ~/projects/claude-config/add.sh ~/.claude/skills/my-new-skill
+# → 自动 mv 到仓库,再 symlink 回去,并提示 git 三连命令
+```
+
+### B) 直接在仓库里新建
+
+```bash
+mkdir -p ~/projects/claude-config/skills/another-skill
+vim ~/projects/claude-config/skills/another-skill/SKILL.md
+bash ~/projects/claude-config/install.sh   # 自动扫描并 symlink 新条目
+```
+
+`install.sh` 幂等:已链接的跳过,新增的自动 link。
+
+新机器 `git pull` + `bash install.sh` 即同步全部(含新增的)。
 
 ## 🗑 卸载
 
