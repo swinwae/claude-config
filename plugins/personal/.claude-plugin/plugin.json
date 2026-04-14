@@ -1,0 +1,8 @@
+{
+  "name": "personal",
+  "description": "swinwae 个人自制 skill / command / agent 集合。当前包含:learn-anything(GitHub repo → 交互式学习 HTML)、memory-digest(记忆总结命令)。未来加新条目直接往 skills/ commands/ agents/ 下放即可。",
+  "version": "0.1.0",
+  "author": {
+    "name": "wanlizhu"
+  }
+}

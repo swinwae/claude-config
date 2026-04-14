@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# 幂等安装:把仓库内容 symlink 到 ~/.claude/
-# 用法:  bash install.sh
-# 冲突:  原文件会被备份到 ~/.claude/backups/config-<时间戳>/
+# 幂等安装:symlink 全局配置 + 打印 plugin 安装指引
+# 自制 skill/command/agent 走 plugin 路径,不 symlink
+# 冲突:原文件备份到 ~/.claude/backups/config-<时间戳>/
 
 set -euo pipefail
 
@@ -38,11 +38,6 @@ link() {
   echo "+  $rel"
 }
 
-echo "== 安装 Claude Code 个人配置 =="
-echo "   仓库: $REPO_DIR"
-echo "   目标: $CLAUDE_DIR"
-echo ""
-
 link_all_in() {
   local subdir="$1"
   [[ -d "$REPO_DIR/$subdir" ]] || return
@@ -52,45 +47,45 @@ link_all_in() {
   done
 }
 
-# 单文件
+echo "== 安装 Claude Code 个人配置 =="
+echo "   仓库: $REPO_DIR"
+echo "   目标: $CLAUDE_DIR"
+echo ""
+
+# 全局配置类 (symlink)
 link CLAUDE.md
 link settings.json
 link statusline-command.sh
-
-# 目录下所有条目(新增 skill/agent/command 自动生效)
 link_all_in rules
-link_all_in commands
-link_all_in skills
-link_all_in agents
 
 echo ""
 echo "== ✅ symlink 完成 =="
 echo ""
 
 # 打印 plugin 安装指引
+echo "== 在 Claude Code 里执行以下命令 =="
+echo ""
+echo "1. 注册本仓库为本地 plugin marketplace:"
+echo "   /plugin marketplace add $REPO_DIR"
+echo ""
+echo "2. 安装自制 plugin(含 learn-anything skill + memory-digest 命令等):"
+echo "   /plugin install personal@swinwae-personal"
+echo ""
+
+# 外部 plugin 指引
 if command -v python3 >/dev/null 2>&1; then
-  echo "== Plugin 需要手动安装 =="
+  echo "3. 安装 settings.json 里声明的外部 plugin:"
   python3 - <<PY
 import json, pathlib
 cfg = json.loads(pathlib.Path("$REPO_DIR/settings.json").read_text())
-plugins = cfg.get("enabledPlugins", {})
-for spec in plugins:
-    print(f"  /plugin install {spec}")
-markets = cfg.get("extraKnownMarketplaces", {})
-if markets:
-    print("")
-    print("第三方 marketplace (自动从 settings.json 加载,通常无需手动添加):")
-    for name, info in markets.items():
-        repo = info.get("source", {}).get("repo", "?")
-        print(f"  - {name}: https://github.com/{repo}")
+for spec in cfg.get("enabledPlugins", {}):
+    print(f"   /plugin install {spec}")
 PY
   echo ""
 fi
 
-echo "== 可选: 装 lark-cli =="
-echo "  npm install -g @larksuiteoapi/lark-cli  # (或官方推荐方式)"
-echo "  lark-cli config init                    # 初始化 21 个 lark-* skills"
+echo "== 可选: 装 lark-cli (如需要 lark-* skills) =="
+echo "   npm install -g @larksuiteoapi/lark-cli"
+echo "   lark-cli config init"
 echo ""
-echo "== 其他手动步骤 =="
-echo "  1. Claude Code 重启或 /reload-plugins 生效"
-echo "  2. 检查 settings.json 是否需要根据本机调整(如 env 变量)"
+echo "完成后 /reload-plugins 或重启 Claude Code 生效。"
