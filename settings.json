@@ -35,7 +35,8 @@
     "playwright@claude-plugins-official": true,
     "jdtls-lsp@claude-plugins-official": true,
     "ui-ux-pro-max@ui-ux-pro-max-skill": true,
-    "last30days@last30days-skill": true
+    "last30days@last30days-skill": true,
+    "personal@swinwae-personal": true
   },
   "extraKnownMarketplaces": {
     "ui-ux-pro-max-skill": {
@@ -49,9 +50,17 @@
         "source": "github",
         "repo": "mvanhorn/last30days-skill"
       }
+    },
+    "swinwae-personal": {
+      "source": {
+        "source": "directory",
+        "path": "/Users/wanlizhu/projects/claude-config"
+      }
     }
   },
   "language": "chinese",
+  "model": "opus[1m]",
+  "effortLevel": "xhigh",
   "skipDangerousModePermissionPrompt": true,
   "dangerouslySkipPermissions": true
 }
